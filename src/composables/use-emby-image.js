@@ -1,16 +1,12 @@
 import { useUserStore } from '@/stores/user'
 import { withTokenQuery } from '@/utils/emby-url'
-
-// 判断是否在 H5 开发环境
-function isDevH5() {
-  return typeof window !== 'undefined' && import.meta.env?.DEV
-}
+import { shouldUseLocalApiProxy } from '@/utils/emby-env'
 
 export function useEmbyImage() {
   function getBaseUrl() {
     const user = useUserStore()
-    if (isDevH5()) {
-      return '/api' // 开发环境使用代理
+    if (shouldUseLocalApiProxy()) {
+      return '/api'
     }
     return user.embyApiRoot
   }

@@ -133,8 +133,23 @@ const hasData = computed(() =>
 let hasLoaded = false
 let loadPromise = null
 
+async function loadResumeList() {
+  if (!user.isLoggedIn) return
+  try {
+    const resR = await fetchResumeItems(8)
+    resumeList.value = resR.data?.Items || []
+  } catch (e) {
+    console.error('resume refresh error:', e)
+  }
+}
+
 onShow(() => {
-  if (!hasLoaded) void enterHome()
+  if (!user.isLoggedIn) return
+  if (hasLoaded) {
+    void loadResumeList()
+  } else {
+    void enterHome()
+  }
 })
 
 onMounted(() => {
@@ -179,8 +194,7 @@ function writeCache(data) {
   }
 }
 
-function applyData(data) {
-  resumeList.value = data.resumeList || []
+function applyRecoFromCache(data) {
   recoMovies.value = data.recoMovies || []
   recoTv.value = data.recoTv || []
 }
@@ -237,7 +251,17 @@ function goTv() {
 async function load() {
   const cached = readCache()
   if (cached) {
-    applyData(cached)
+    applyRecoFromCache(cached)
+    loading.value = true
+    try {
+      const resR = await fetchResumeItems(8)
+      resumeList.value = resR.data?.Items || []
+    } catch (e) {
+      console.error('load error:', e)
+      uni.showToast({ title: '继续观看加载失败', icon: 'none' })
+    } finally {
+      loading.value = false
+    }
     return
   }
 
@@ -246,9 +270,7 @@ async function load() {
     await library.loadViews()
 
     const resR = await fetchResumeItems(8)
-    console.log('Resume items response:', resR.data)
     resumeList.value = resR.data?.Items || []
-    console.log('Resume list:', resumeList.value)
 
     const hasMovieLib = library.movieParentId
     const hasTvLib = library.tvParentId
@@ -342,7 +364,6 @@ async function load() {
     await Promise.all(requests)
 
     writeCache({
-      resumeList: resumeList.value,
       recoMovies: recoMovies.value,
       recoTv: recoTv.value,
     })

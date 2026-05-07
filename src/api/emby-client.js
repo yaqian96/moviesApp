@@ -1,10 +1,7 @@
 import axios from 'axios'
 import { useUserStore } from '@/stores/user'
 
-// 判断是否在 H5 开发环境
-function isDevH5() {
-  return typeof window !== 'undefined' && import.meta.env?.DEV
-}
+import { shouldUseLocalApiProxy } from '@/utils/emby-env'
 
 function deviceHeaders() {
   const user = useUserStore()
@@ -31,12 +28,8 @@ function createClient() {
       return Promise.reject(new Error('未配置 Emby 服务地址'))
     }
     
-    // 开发环境下使用代理，将完整 URL 转为相对路径
-    if (isDevH5() && root) {
-      // 提取路径部分，去掉域名
-      const urlObj = new URL(root)
-      const pathPrefix = urlObj.pathname // /emby
-      // 将请求路径中的 /emby 替换为 /api/emby，让代理处理
+    // localhost 开发 / vite preview 走同域 /api，避免 CORS；已部署域名或 file:// 直连 Emby
+    if (shouldUseLocalApiProxy() && root) {
       config.baseURL = '/api'
       // 如果原始 URL 是 /emby/Users/xxx，现在变成 /api/Users/xxx
       if (config.url && config.url.startsWith('/emby')) {

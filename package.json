@@ -1,6 +1,9 @@
 {
-  "name": "uni-preset-vue",
-  "version": "0.0.0",
+  "name": "emby-media-client",
+  "version": "1.0.0",
+  "description": "Emby media client (uni-app H5 + Electron desktop)",
+  "author": "EmbyMediaClient",
+  "main": "electron/main.js",
   "scripts": {
     "dev:custom": "uni -p",
     "dev:h5": "uni",
@@ -20,11 +23,13 @@
     "dev:quickapp-webview-union": "uni -p quickapp-webview-union",
     "build:custom": "uni build -p",
     "build:h5": "uni build",
+    "preview:h5": "vite preview --outDir dist/build/h5",
+    "serve:h5": "python scripts/h5-static-proxy.py",
     "build:h5:ssr": "uni build --ssr",
     "build:mp-alipay": "uni build -p mp-alipay",
     "build:mp-baidu": "uni build -p mp-baidu",
     "build:mp-jd": "uni build -p mp-jd",
-    "build:mp-kuaishou": "uni build -p mp-kuaishou",
+    "build:mp-kuaishou": "uni -p mp-kuaishou",
     "build:mp-lark": "uni build -p mp-lark",
     "build:mp-qq": "uni build -p mp-qq",
     "build:mp-toutiao": "uni build -p mp-toutiao",
@@ -33,7 +38,9 @@
     "build:mp-xhs": "uni build -p mp-xhs",
     "build:quickapp-webview": "uni build -p quickapp-webview",
     "build:quickapp-webview-huawei": "uni build -p quickapp-webview-huawei",
-    "build:quickapp-webview-union": "uni build -p quickapp-webview-union"
+    "build:quickapp-webview-union": "uni build -p quickapp-webview-union",
+    "electron:dev": "cross-env NODE_ENV=development electron .",
+    "electron:build": "npm run build:h5 && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --publish never"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5000720260410001",
@@ -66,10 +73,45 @@
     "@dcloudio/vite-plugin-uni": "3.0.0-5000720260410001",
     "@uni-helper/vite-plugin-uni-tailwind": "^0.15.2",
     "@vue/runtime-core": "^3.4.21",
+    "app-builder-bin": "^5.0.0-alpha.12",
     "autoprefixer": "^10.5.0",
+    "cross-env": "^7.0.3",
+    "electron": "^42.0.0",
+    "electron-builder": "^26.9.1",
     "postcss": "^8.5.12",
     "sass": "^1.99.0",
     "tailwindcss": "^3.4.19",
     "vite": "5.2.8"
+  },
+  "build": {
+    "appId": "com.emby.mediaclient",
+    "productName": "EmbyMediaClient",
+    "directories": {
+      "output": "dist-electron-new"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*"
+    ],
+    "asar": false,
+    "toolsets": {
+      "winCodeSign": "1.1.0"
+    },
+    "win": {
+      "forceCodeSigning": false,
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

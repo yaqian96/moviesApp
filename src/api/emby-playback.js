@@ -1,11 +1,7 @@
 import { embyClient } from './emby-client'
 import { useUserStore } from '@/stores/user'
 import { withTokenQuery } from '@/utils/emby-url'
-
-// 判断是否在 H5 开发环境
-function isDevH5() {
-  return typeof window !== 'undefined' && import.meta.env?.DEV
-}
+import { shouldUseLocalApiProxy } from '@/utils/emby-env'
 
 function uid() {
   return useUserStore().userId
@@ -16,8 +12,8 @@ function token() {
 }
 
 function apiRoot() {
-  if (isDevH5()) {
-    return '/api' // 开发环境使用代理
+  if (shouldUseLocalApiProxy()) {
+    return '/api'
   }
   return useUserStore().embyApiRoot
 }
@@ -33,6 +29,77 @@ export async function getPlaybackInfo(itemId) {
   return res.data
 }
 
+export function newPlaySessionId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+export function resolvePlaySessionId(pb) {
+  if (!pb || typeof pb !== 'object') return ''
+  let sid =
+    pb.PlaySessionId ||
+    pb.playSessionId ||
+    pb.PlaySessionInfo?.PlaySessionId ||
+    pb.PlaySessionInfo?.playSessionId ||
+    ''
+  if (!sid && Array.isArray(pb.MediaSources)) {
+    for (const ms of pb.MediaSources) {
+      sid = ms?.PlaySessionId || ms?.playSessionId || ''
+      if (sid) break
+    }
+  }
+  return typeof sid === 'string' ? sid : ''
+}
+
+const TICKS_PER_SEC = 10_000_000
+
+function buildPlaybackBody({
+  itemId,
+  mediaSourceId,
+  playSessionId,
+  positionTicks = 0,
+  isPaused = false,
+  canSeek = true,
+}) {
+  return {
+    ItemId: itemId,
+    MediaSourceId: mediaSourceId,
+    PlaySessionId: playSessionId,
+    PositionTicks: Math.max(0, Math.floor(positionTicks)),
+    CanSeek: canSeek,
+    IsPaused: isPaused,
+    IsMuted: false,
+    VolumeLevel: 100,
+    PlayMethod: 'DirectPlay',
+    QueueableMediaTypes: ['Video'],
+  }
+}
+
+export function reportPlaybackStarted(ctx) {
+  return embyClient.post('/Sessions/Playing', buildPlaybackBody(ctx))
+}
+
+export function reportPlaybackProgress(ctx, eventName = 'TimeUpdate') {
+  return embyClient.post('/Sessions/Playing/Progress', {
+    ...buildPlaybackBody(ctx),
+    EventName: eventName,
+  })
+}
+
+export function reportPlaybackStopped(ctx) {
+  return embyClient.post('/Sessions/Playing/Stopped', buildPlaybackBody(ctx))
+}
+
+export function secondsToTicks(sec) {
+  return Math.floor(Number(sec) || 0) * TICKS_PER_SEC
+}
+
 function pickMediaSource(data) {
   const srcs = data?.MediaSources || data?.mediaSources
   if (!srcs?.length) return null
@@ -42,7 +109,7 @@ function pickMediaSource(data) {
 export function buildStreamUrl(itemId, playbackData) {
   const ms = pickMediaSource(playbackData)
   if (!ms) return ''
-  const playSessionId = playbackData.PlaySessionId || playbackData.playSessionId || ''
+  const playSessionId = resolvePlaySessionId(playbackData)
   const mediaSourceId = ms.Id
   const params = new URLSearchParams()
   if (mediaSourceId) params.set('MediaSourceId', mediaSourceId)
@@ -55,7 +122,7 @@ export function buildStreamUrl(itemId, playbackData) {
 export function buildHlsUrl(itemId, playbackData) {
   const ms = pickMediaSource(playbackData)
   if (!ms) return ''
-  const playSessionId = playbackData.PlaySessionId || ''
+  const playSessionId = resolvePlaySessionId(playbackData)
   const mediaSourceId = ms.Id
   const params = new URLSearchParams()
   if (mediaSourceId) params.set('MediaSourceId', mediaSourceId)

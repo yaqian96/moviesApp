@@ -11,6 +11,8 @@ node_modules
 .DS_Store
 dist
 *.local
+release
+dist-electron-new
 
 # Editor directories and files
 .idea
