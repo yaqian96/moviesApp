@@ -2,19 +2,13 @@
   <view class="min-h-screen bg-surface px-6 py-12">
     <view class="mb-10">
       <text class="text-2xl font-semibold text-white">Emby 媒体库</text>
-      <view class="mt-2 text-sm text-muted">使用服务器地址与 API Key 连接</view>
+      <view class="mt-2 text-sm text-muted">输入服务器地址即可登录</view>
     </view>
     <view class="flex flex-col gap-4">
       <wd-input
         v-model="form.baseUrl"
         label="服务器地址"
         placeholder="https://your-emby.com"
-        clearable
-      />
-      <wd-input
-        v-model="form.apiKey"
-        label="API Key"
-        placeholder="控制面板中生成的密钥"
         clearable
       />
       <wd-input v-model="form.username" label="用户名" placeholder="Emby 用户名" clearable />
@@ -36,14 +30,12 @@
 import { reactive, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useUserStore } from '@/stores/user'
-import { fetchSystemInfo } from '@/api/emby-auth'
-import { authenticateByName } from '@/api/emby-auth'
+import { fetchSystemInfo, authenticateByName } from '@/api/emby-auth'
 
 const user = useUserStore()
 const loading = ref(false)
 const form = reactive({
   baseUrl: '',
-  apiKey: '',
   username: '',
   password: '',
 })
@@ -51,7 +43,6 @@ const form = reactive({
 onShow(() => {
   user.hydrate()
   form.baseUrl = user.embyBaseUrl || ''
-  form.apiKey = user.apiKey || ''
   form.username = user.userName || ''
   if (user.isLoggedIn) {
     uni.reLaunch({ url: '/pages/home/home' })
@@ -62,7 +53,6 @@ async function submit() {
   loading.value = true
   try {
     user.setServer(form.baseUrl)
-    user.setApiKey(form.apiKey)
     await fetchSystemInfo()
     const { data } = await authenticateByName(form.username, form.password)
     const nextUid =

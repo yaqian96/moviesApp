@@ -1,35 +1,47 @@
 <template>
   <app-shell active="home">
-    <view v-if="loading" class="py-12 text-center">
+    <view v-if="loading && !hasData" class="py-12">
       <wd-loading />
     </view>
     <view v-else>
-      <view class="mb-6 overflow-hidden rounded-xl">
-        <swiper
-          v-if="carouselList.length"
-          class="h-48 w-full"
-          circular
-          autoplay
-          :interval="5000"
-          indicator-dots
-          indicator-color="rgba(255,255,255,.35)"
-          indicator-active-color="#fff"
-        >
-          <swiper-item v-for="item in carouselList" :key="item.Id" class="relative" @click="open(item)">
-            <image
-              class="h-48 w-full"
-              :src="backdropFor(item)"
-              mode="aspectFill"
-            />
-            <view class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 p-3">
-              <text class="text-base font-medium">{{ displayName(item) }}</text>
-              <text class="text-xs text-muted">{{ item.Type }}</text>
-            </view>
-          </swiper-item>
-        </swiper>
-        <view v-else class="flex h-36 items-center justify-center rounded-xl bg-card">
-          <text class="text-sm text-muted">暂无内容</text>
+      <!-- 继续观看 -->
+      <view v-if="resumeList.length" class="mb-6">
+        <view class="mb-3 flex items-center justify-between px-1">
+          <text class="text-base font-medium text-white">继续观看</text>
         </view>
+        <scroll-view scroll-x class="w-full whitespace-nowrap" show-scrollbar="false">
+          <view class="inline-flex gap-3 pb-1">
+            <view
+              v-for="item in resumeList"
+              :key="item.Id"
+              class="w-64 shrink-0 overflow-hidden rounded-lg bg-card active:opacity-80"
+              @click="open(item)"
+            >
+              <view class="relative">
+                <image
+                  class="aspect-video w-full bg-white bg-opacity-5"
+                  :src="backdropFor(item)"
+                  mode="aspectFill"
+                />
+                <!-- 播放进度条 -->
+                <view class="absolute bottom-0 left-0 right-0 h-1 bg-black bg-opacity-40">
+                  <view
+                    class="h-full bg-green-500"
+                    :style="{ width: (item.UserData?.PlayedPercentage || 0) + '%' }"
+                  />
+                </view>
+                <!-- 播放按钮 -->
+                <view class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20">
+                  <text class="text-4xl text-white text-opacity-90">▶</text>
+                </view>
+              </view>
+              <view class="p-2">
+                <text class="line-clamp-1 text-sm text-white text-opacity-90">{{ displayName(item) }}</text>
+                <text v-if="item.SeriesName || item.SeasonName" class="mt-0.5 line-clamp-1 text-xs text-muted">{{ formatEpisodeInfo(item) }}</text>
+              </view>
+            </view>
+          </view>
+        </scroll-view>
       </view>
 
       <media-row v-if="recoMovies.length" title="推荐 · 电影">
@@ -42,7 +54,6 @@
         />
       </media-row>
 
-      <!-- 推荐剧集 - 显示最新集数信息 -->
       <media-row v-if="recoTv.length" title="推荐 · 剧集">
         <view
           v-for="item in recoTv"
@@ -56,9 +67,7 @@
             mode="aspectFill"
           />
           <view class="p-2">
-            <!-- 电视剧名称 -->
             <text class="line-clamp-2 text-xs text-white text-opacity-90">{{ item.latestEpisode?.SeriesName || item.Name }}</text>
-            <!-- 完整副标题：季名 + 集名 -->
             <view v-if="item.latestEpisode" class="mt-0.5">
               <text class="text-xs text-muted line-clamp-1">{{ formatFullTitle(item.latestEpisode) }}</text>
             </view>
@@ -66,7 +75,7 @@
         </view>
       </media-row>
 
-      <view class="mb-3 px-1">
+      <!-- <view class="mb-3 px-1">
         <text class="text-base font-medium">浏览分类</text>
       </view>
       <view class="grid grid-cols-2 gap-3">
@@ -82,7 +91,7 @@
         >
           <text class="font-medium">电视剧</text>
         </view>
-      </view>
+      </view> -->
     </view>
   </app-shell>
 </template>
@@ -101,74 +110,105 @@ import {
   buildUserItemsParams,
 } from '@/api/emby-items'
 import { useEmbyImage } from '@/composables/use-emby-image'
+import { setStorageSync, getStorageSync } from '@/utils/storage'
+
+const CACHE_KEY = 'home_cache_v2'
+const CACHE_TTL = 5 * 60 * 1000
 
 const user = useUserStore()
 const library = useLibraryStore()
 const { primaryUrl, backdropUrl } = useEmbyImage()
 
-const loading = ref(true)
+const loading = ref(false)
 const resumeList = ref([])
 const recoMovies = ref([])
 const recoTv = ref([])
-const fallbackList = ref([])
 
-const carouselList = computed(() => {
-  if (resumeList.value.length) {
-    return resumeList.value
-  }
-  return fallbackList.value
+const hasData = computed(() =>
+  resumeList.value.length > 0 ||
+  recoMovies.value.length > 0 ||
+  recoTv.value.length > 0
+)
+
+let hasLoaded = false
+let loadPromise = null
+
+onShow(() => {
+  if (!hasLoaded) void enterHome()
 })
 
-let loadInflight = null
-function loadOnce() {
-  if (loadInflight) return loadInflight
-  loadInflight = (async () => {
-    try {
-      await load()
-    } finally {
-      loadInflight = null
-    }
-  })()
-  return loadInflight
-}
+onMounted(() => {
+  if (!hasLoaded) void enterHome()
+})
 
 async function enterHome() {
   if (!user.isLoggedIn) {
     uni.reLaunch({ url: '/pages/login/login' })
     return
   }
-  await loadOnce()
+  if (loadPromise) {
+    await loadPromise
+    return
+  }
+  loadPromise = load()
+  try {
+    await loadPromise
+    hasLoaded = true
+  } finally {
+    loadPromise = null
+  }
 }
 
-onShow(() => {
-  void enterHome()
-})
+function readCache() {
+  try {
+    const raw = getStorageSync(CACHE_KEY)
+    if (!raw) return null
+    const { ts, data } = raw
+    if (Date.now() - ts > CACHE_TTL) return null
+    return data
+  } catch {
+    return null
+  }
+}
 
-onMounted(() => {
-  void enterHome()
-})
+function writeCache(data) {
+  try {
+    setStorageSync(CACHE_KEY, { ts: Date.now(), data })
+  } catch {
+    /* noop */
+  }
+}
+
+function applyData(data) {
+  resumeList.value = data.resumeList || []
+  recoMovies.value = data.recoMovies || []
+  recoTv.value = data.recoTv || []
+}
 
 function displayName(item) {
   return item.Name || item.SeriesName || '未命名'
 }
 
-function formatEpisodeInfo(ep) {
-  if (!ep) return ''
-  const season = ep.ParentIndexNumber ? `S${ep.ParentIndexNumber}` : ''
-  const episode = ep.IndexNumber ? `E${ep.IndexNumber}` : ''
-  return season && episode ? `${season}${episode}` : ep.Name
-}
-
 function formatFullTitle(ep) {
   if (!ep) return ''
   const parts = []
-  if (ep.SeasonName) {
-    parts.push(ep.SeasonName)
-  }
-  if (ep.Name) {
-    parts.push(ep.Name)
-  }
+  if (ep.SeasonName) parts.push(ep.SeasonName)
+  if (ep.Name) parts.push(ep.Name)
   return parts.join(' ')
+}
+
+function formatEpisodeInfo(item) {
+  const parts = []
+  if (item.SeasonName) parts.push(item.SeasonName)
+  if (item.IndexNumber) parts.push(`第${item.IndexNumber}集`)
+  return parts.join(' · ')
+}
+
+function formatProgress(item) {
+  const pct = item.UserData?.PlayedPercentage || 0
+  if (pct <= 0) return '未开始'
+  if (pct >= 100) return '已看完'
+  return `已看 ${Math.round(pct)}%`
 }
 
 function posterFor(item) {
@@ -178,9 +218,7 @@ function posterFor(item) {
 
 function backdropFor(item) {
   const tag = item.BackdropImageTags?.[0]
-  if (item.BackdropImageTags?.length) {
-    return backdropUrl(item.Id, tag, 900, 0)
-  }
+  if (tag) return backdropUrl(item.Id, tag, 900, 0)
   return posterFor(item)
 }
 
@@ -197,92 +235,117 @@ function goTv() {
 }
 
 async function load() {
+  const cached = readCache()
+  if (cached) {
+    applyData(cached)
+    return
+  }
+
   loading.value = true
   try {
     await library.loadViews()
-    const resR = await fetchResumeItems(12)
+
+    const resR = await fetchResumeItems(8)
+    console.log('Resume items response:', resR.data)
     resumeList.value = resR.data?.Items || []
-    
-    const fallbackItems = []
+    console.log('Resume list:', resumeList.value)
+
     const hasMovieLib = library.movieParentId
     const hasTvLib = library.tvParentId
     const hasMixedLib = library.mixedParentId && !hasMovieLib && !hasTvLib
-    
+
+    const requests = []
+
     if (hasMovieLib) {
-      const m = await fetchUserItems(
-        buildUserItemsParams(library.movieParentId, {
-          IncludeItemTypes: 'Movie',
-          Recursive: true,
-          SortBy: 'DateCreated',
-          SortOrder: 'Descending',
-          Limit: 16,
+      requests.push(
+        fetchUserItems(
+          buildUserItemsParams(library.movieParentId, {
+            IncludeItemTypes: 'Movie',
+            Recursive: true,
+            SortBy: 'DateCreated',
+            SortOrder: 'Descending',
+            Limit: 8,
+          })
+        ).then((m) => {
+          recoMovies.value = m.data?.Items || []
         })
       )
-      recoMovies.value = m.data?.Items || []
-      fallbackItems.push(...(m.data?.Items || []))
     }
     if (hasTvLib) {
-      const t = await fetchUserItems(
-        buildUserItemsParams(library.tvParentId, {
-          IncludeItemTypes: 'Series',
-          Recursive: true,
-          SortBy: 'DateCreated',
-          SortOrder: 'Descending',
-          Limit: 16,
+      requests.push(
+        fetchUserItems(
+          buildUserItemsParams(library.tvParentId, {
+            IncludeItemTypes: 'Series',
+            Recursive: true,
+            SortBy: 'DateCreated',
+            SortOrder: 'Descending',
+            Limit: 8,
+          })
+        ).then(async (t) => {
+          const seriesList = t.data?.Items || []
+          recoTv.value = await loadLatestEpisodes(seriesList)
         })
       )
-      const seriesList = t.data?.Items || []
-      recoTv.value = await loadLatestEpisodes(seriesList)
-      fallbackItems.push(...seriesList)
     }
 
     if (hasMixedLib) {
-      const mix = await fetchUserItems(
-        buildUserItemsParams(library.mixedParentId, {
-          IncludeItemTypes: 'Movie,Series',
-          Recursive: true,
-          SortBy: 'DateCreated',
-          SortOrder: 'Descending',
-          Limit: 16,
+      requests.push(
+        fetchUserItems(
+          buildUserItemsParams(library.mixedParentId, {
+            IncludeItemTypes: 'Movie,Series',
+            Recursive: true,
+            SortBy: 'DateCreated',
+            SortOrder: 'Descending',
+            Limit: 8,
+          })
+        ).then(async (mix) => {
+          const mixedItems = mix.data?.Items || []
+          const movies = mixedItems.filter((i) => i.Type === 'Movie')
+          const series = mixedItems.filter((i) => i.Type === 'Series')
+          recoMovies.value = movies.slice(0, 8)
+          recoTv.value = await loadLatestEpisodes(series.slice(0, 8))
         })
       )
-      const mixedItems = mix.data?.Items || []
-      const movies = mixedItems.filter((i) => i.Type === 'Movie')
-      const series = mixedItems.filter((i) => i.Type === 'Series')
-      recoMovies.value = movies.slice(0, 16)
-      recoTv.value = await loadLatestEpisodes(series.slice(0, 16))
-      fallbackItems.push(...mixedItems)
     }
 
     if (!hasMovieLib && !hasTvLib && !hasMixedLib) {
       const p = library.fallbackParentId
-      const m = await fetchUserItems(
-        buildUserItemsParams(p, {
-          IncludeItemTypes: 'Movie',
-          Recursive: true,
-          SortBy: 'DateCreated',
-          SortOrder: 'Descending',
-          Limit: 16,
+      requests.push(
+        fetchUserItems(
+          buildUserItemsParams(p, {
+            IncludeItemTypes: 'Movie',
+            Recursive: true,
+            SortBy: 'DateCreated',
+            SortOrder: 'Descending',
+            Limit: 8,
+          })
+        ).then((m) => {
+          recoMovies.value = m.data?.Items || []
         })
       )
-      recoMovies.value = m.data?.Items || []
-      fallbackItems.push(...(m.data?.Items || []))
-      const t = await fetchUserItems(
-        buildUserItemsParams(p, {
-          IncludeItemTypes: 'Series',
-          Recursive: true,
-          SortBy: 'DateCreated',
-          SortOrder: 'Descending',
-          Limit: 16,
+      requests.push(
+        fetchUserItems(
+          buildUserItemsParams(p, {
+            IncludeItemTypes: 'Series',
+            Recursive: true,
+            SortBy: 'DateCreated',
+            SortOrder: 'Descending',
+            Limit: 8,
+          })
+        ).then(async (t) => {
+          const seriesList = t.data?.Items || []
+          recoTv.value = await loadLatestEpisodes(seriesList)
         })
       )
-      const seriesList = t.data?.Items || []
-      recoTv.value = await loadLatestEpisodes(seriesList)
-      fallbackItems.push(...seriesList)
     }
 
-    fallbackList.value = fallbackItems.slice(0, 5)
-    console.log('fallbackList:', fallbackList.value)
+    await Promise.all(requests)
+
+    writeCache({
+      resumeList: resumeList.value,
+      recoMovies: recoMovies.value,
+      recoTv: recoTv.value,
+    })
   } catch (e) {
     console.error('load error:', e)
     uni.showToast({ title: '加载失败', icon: 'none' })
@@ -292,8 +355,8 @@ async function load() {
 }
 
 async function loadLatestEpisodes(seriesList) {
-  const result = []
-  for (const series of seriesList) {
+  if (!seriesList.length) return []
+  const episodeRequests = seriesList.map(async (series) => {
     try {
       const { data } = await fetchUserItems({
         ParentId: series.Id,
@@ -305,18 +368,12 @@ async function loadLatestEpisodes(seriesList) {
         Fields: 'Studios,ParentIndexNumber,IndexNumber,SeasonName,SeriesName',
       })
       const latestEp = data?.Items?.[0]
-      result.push({
-        ...series,
-        latestEpisode: latestEp || null,
-      })
+      return { ...series, latestEpisode: latestEp || null }
     } catch {
-      result.push({
-        ...series,
-        latestEpisode: null,
-      })
+      return { ...series, latestEpisode: null }
     }
-  }
-  return result
+  })
+  return Promise.all(episodeRequests)
 }
 </script>
 

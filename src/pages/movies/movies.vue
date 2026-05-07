@@ -41,7 +41,8 @@ const user = useUserStore()
 const library = useLibraryStore()
 const { primaryUrl } = useEmbyImage()
 
-const pageSize = 30
+const initialSize = 8
+const pageSize = 16
 const start = ref(0)
 const items = ref([])
 const hasMore = ref(true)
@@ -60,8 +61,7 @@ async function enterMovies() {
       await library.loadViews()
       parentReady.value = true
       if (!items.value.length) {
-        start.value = 0
-        await loadMore(true)
+        await initLoad()
       }
     } finally {
       pageInflight = null
@@ -78,21 +78,19 @@ onMounted(() => {
   void enterMovies()
 })
 
-function posterFor(item) {
-  return primaryUrl(item.Id, item.ImageTags?.Primary, 360)
+async function initLoad() {
+  start.value = 0
+  items.value = []
+  hasMore.value = true
+  await doLoad(initialSize)
 }
 
-function open(item) {
-  uni.navigateTo({ url: `/pages/detail/detail?id=${item.Id}` })
+async function loadMore() {
+  if (loading.value || !hasMore.value) return
+  await doLoad(pageSize)
 }
 
-async function loadMore(reset = false) {
-  if (loading.value) return
-  if (reset) {
-    items.value = []
-    start.value = 0
-    hasMore.value = true
-  }
+async function doLoad(limit) {
   loading.value = true
   try {
     const parentId =
@@ -102,19 +100,27 @@ async function loadMore(reset = false) {
         IncludeItemTypes: 'Movie',
         Recursive: true,
         StartIndex: start.value,
-        Limit: pageSize,
+        Limit: limit,
         SortBy: 'SortName',
         SortOrder: 'Ascending',
       })
     )
     const batch = res.data?.Items || []
-    items.value = reset ? batch : items.value.concat(batch)
+    items.value = items.value.concat(batch)
     start.value += batch.length
-    hasMore.value = batch.length === pageSize
+    hasMore.value = batch.length === limit
   } catch {
     uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {
     loading.value = false
   }
+}
+
+function posterFor(item) {
+  return primaryUrl(item.Id, item.ImageTags?.Primary, 360)
+}
+
+function open(item) {
+  uni.navigateTo({ url: `/pages/detail/detail?id=${item.Id}` })
 }
 </script>

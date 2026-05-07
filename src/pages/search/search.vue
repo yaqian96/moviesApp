@@ -1,15 +1,15 @@
 <template>
   <app-shell active="home">
-    <view class="p-4">
+    <view class="w-full px-4 py-4">
       <!-- 搜索输入框 -->
-      <view class="mb-4">
+      <view class="mb-4 w-full">
         <wd-input
           v-model="q"
           placeholder="搜索电影、电视剧..."
           clearable
           @confirm="run"
         />
-        <wd-button class="mt-2" type="primary" block @click="run">搜索</wd-button>
+        <wd-button class="mt-3 w-full" type="primary" @click="run">搜索</wd-button>
       </view>
       
       <view v-if="loading" class="py-12 text-center">
@@ -19,7 +19,7 @@
         <view
           v-for="row in list"
           :key="row.Id"
-          class="flex items-center gap-3  py-3"
+          class="mb-2 flex w-full items-center gap-3 rounded-lg px-3 py-3 active:bg-white active:bg-opacity-5"
           @click="open(row)"
         >
           <image
@@ -28,9 +28,12 @@
             mode="aspectFill"
           />
           <view class="min-w-0 flex-1">
-            <text class="line-clamp-2 text-sm">{{ row.Name }}</text>
-            <text class="mt-1 text-xs text-muted">{{ row.Type }}</text>
-            <text v-if="row.ProductionYear" class="mt-1 text-xs text-muted">{{ row.ProductionYear }}</text>
+            <text class="line-clamp-2 text-sm text-white text-opacity-90">{{ row.Name }}</text>
+            <view class="mt-1 flex items-center gap-2">
+              <text class="text-xs text-muted">{{ row.Type }}</text>
+              <text v-if="row.ProductionYear" class="text-xs text-muted">·</text>
+              <text v-if="row.ProductionYear" class="text-xs text-muted">{{ row.ProductionYear }}</text>
+            </view>
           </view>
         </view>
         <view v-if="!list.length && hasSearched" class="py-16 text-center text-sm text-muted">无结果</view>
@@ -88,7 +91,6 @@ async function run() {
   loading.value = true
   hasSearched.value = true
   try {
-    // 先加载媒体库视图
     await library.loadViews()
     
     const searchTerm = q.value.trim()

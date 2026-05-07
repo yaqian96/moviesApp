@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { normalizeEmbyApiRoot } from '@/utils/emby-url'
+import { setStorageSync, getStorageSync, removeStorageSync } from '@/utils/storage'
+import { EMBY_CONFIG } from '@/config/emby'
 
 const STORAGE_KEYS = [
   'embyBaseUrl',
-  'apiKey',
   'accessToken',
   'userId',
   'userName',
@@ -14,7 +15,7 @@ function loadFromStorage() {
   const state = {}
   STORAGE_KEYS.forEach((k) => {
     try {
-      const v = uni.getStorageSync(k)
+      const v = getStorageSync(k)
       if (v !== '' && v != null) state[k] = v
     } catch {
       /* noop */
@@ -23,7 +24,7 @@ function loadFromStorage() {
   if (!state.deviceId) {
     state.deviceId =
       `emby-uni-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
-    uni.setStorageSync('deviceId', state.deviceId)
+    setStorageSync('deviceId', state.deviceId)
   }
   return state
 }
@@ -31,7 +32,7 @@ function loadFromStorage() {
 export const useUserStore = defineStore('user', {
   state: () => ({
     embyBaseUrl: '',
-    apiKey: '',
+    apiKey: EMBY_CONFIG.apiKey,
     accessToken: '',
     userId: '',
     userName: '',
@@ -46,30 +47,27 @@ export const useUserStore = defineStore('user', {
   actions: {
     setServer(url) {
       this.embyBaseUrl = (url || '').trim().replace(/\/$/, '')
-      uni.setStorageSync('embyBaseUrl', this.embyBaseUrl)
-    },
-    setApiKey(key) {
-      this.apiKey = (key || '').trim()
-      uni.setStorageSync('apiKey', this.apiKey)
+      setStorageSync('embyBaseUrl', this.embyBaseUrl)
     },
     setSession({ accessToken, userId, userName }) {
       this.accessToken = accessToken || ''
       this.userId = userId || ''
       this.userName = userName || ''
-      uni.setStorageSync('accessToken', this.accessToken)
-      uni.setStorageSync('userId', this.userId)
-      uni.setStorageSync('userName', this.userName)
+      setStorageSync('accessToken', this.accessToken)
+      setStorageSync('userId', this.userId)
+      setStorageSync('userName', this.userName)
     },
     logout() {
       this.accessToken = ''
       this.userId = ''
       this.userName = ''
-      uni.removeStorageSync('accessToken')
-      uni.removeStorageSync('userId')
-      uni.removeStorageSync('userName')
+      removeStorageSync('accessToken')
+      removeStorageSync('userId')
+      removeStorageSync('userName')
     },
     hydrate() {
       Object.assign(this, loadFromStorage())
+      this.apiKey = EMBY_CONFIG.apiKey
     },
   },
 })

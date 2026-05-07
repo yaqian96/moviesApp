@@ -13,7 +13,9 @@ export function fetchResumeItems(limit = 24) {
   return embyClient.get(`/Users/${uid()}/Items/Resume`, {
     params: {
       Limit: limit,
-      Fields: 'PrimaryImageAspectRatio,Overview,Path,Type,MediaType',
+      Recursive: true,
+      IncludeItemTypes: 'Movie,Episode',
+      Fields: 'PrimaryImageAspectRatio,Overview,Path,Type,MediaType,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,BackdropImageTags',
     },
   })
 }
