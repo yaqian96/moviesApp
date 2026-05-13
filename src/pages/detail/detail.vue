@@ -45,7 +45,7 @@
             />
             <view class="flex-1 min-w-0">
               <view class="flex items-center gap-2">
-                <text class="text-sm font-medium truncate">第{{ ep.IndexNumber }}集 {{ ep.SeriesName }}</text>
+                <text class="text-sm font-medium truncate">第{{ ep.IndexNumber }}集 {{ ep.Name }}</text>
                 <!-- 标签 -->
                 <text v-if="index === 0" class="text-xs px-1.5 py-0.5 rounded bg-primary text-white">最新</text>
                 <text v-if="ep.UserData?.Played" class="text-xs px-1.5 py-0.5 rounded bg-green-600 text-white">已看</text>
