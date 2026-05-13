@@ -7,11 +7,18 @@ import tailwindcss from 'tailwindcss'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+const devPort = Number(process.env.VITE_DEV_PORT) || 8080
+
+const embyDevProxyTarget =
+  process.env.VITE_EMBY_DEV_PROXY_TARGET || 'https://media.blueone-media.top'
+
 const embyApiProxy = {
   '/api': {
-    target: 'https://media.blueone-media.top',
+    target: embyDevProxyTarget,
     changeOrigin: true,
     rewrite: (p) => p.replace(/^\/api/, '/emby'),
+    proxyTimeout: 600_000,
+    timeout: 600_000,
   },
 }
 
@@ -29,11 +36,11 @@ export default defineConfig({
   },
   plugins: [uni(), uniTailwind()],
   server: {
-    port: 8080,
+    port: devPort,
     proxy: embyApiProxy,
   },
   preview: {
-    port: 8080,
+    port: devPort,
     proxy: embyApiProxy,
   },
 })

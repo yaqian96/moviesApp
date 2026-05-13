@@ -7,6 +7,22 @@ function pickView(views, collectionType) {
   return list.find((v) => v.CollectionType === collectionType) || null
 }
 
+const COLLECTION_ORDER = [
+  'movies',
+  'tvshows',
+  'boxsets',
+  'mixed',
+  'music',
+  'musicvideos',
+  'homevideos',
+  'playlists',
+]
+
+function collectionTypeRank(t) {
+  const i = COLLECTION_ORDER.indexOf(t)
+  return i === -1 ? 99 : i
+}
+
 export const useLibraryStore = defineStore('library', {
   state: () => ({
     movieParentId: '',
@@ -16,6 +32,26 @@ export const useLibraryStore = defineStore('library', {
     allViews: [],
     loaded: false,
   }),
+  getters: {
+    browseNavItems(state) {
+      const supported = new Set(COLLECTION_ORDER)
+      const list = state.allViews || []
+      return list
+        .filter((v) => v.CollectionType && supported.has(v.CollectionType))
+        .sort(
+          (a, b) =>
+            collectionTypeRank(a.CollectionType) -
+            collectionTypeRank(b.CollectionType)
+        )
+        .map((v) => ({
+          label: v.Name || '媒体库',
+          id: v.Id,
+          collectionType: v.CollectionType,
+          key: `lib-${v.Id}`,
+          path: `/pages/browse/browse?id=${encodeURIComponent(v.Id)}&title=${encodeURIComponent(v.Name || '')}&ct=${encodeURIComponent(v.CollectionType || '')}`,
+        }))
+    },
+  },
   actions: {
     async loadViews(force = false) {
       if (this.loaded && !force) return

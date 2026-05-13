@@ -3,14 +3,30 @@
     <view v-if="loading && !hasData" class="py-12">
       <wd-loading />
     </view>
-    <view v-else>
+    <view v-else class="w-full min-w-0">
+      <view v-if="libraryTiles.length" class="mb-8 px-1">
+        <view class="mb-3 flex items-center justify-between">
+          <text class="text-base font-medium text-white">媒体库</text>
+        </view>
+        <view class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+          <view
+            v-for="tile in libraryTiles"
+            :key="tile.key"
+            class="flex min-h-[4.5rem] items-center justify-center rounded-xl bg-card px-2 py-3 active:opacity-80"
+            @click="goBrowse(tile.path)"
+          >
+            <text class="text-center text-sm font-medium text-white text-opacity-90">{{ tile.label }}</text>
+          </view>
+        </view>
+      </view>
       <!-- 继续观看 -->
-      <view v-if="resumeList.length" class="mb-6">
+      <view v-if="resumeList.length" class="mb-6 w-full min-w-0">
         <view class="mb-3 flex items-center justify-between px-1">
           <text class="text-base font-medium text-white">继续观看</text>
         </view>
-        <scroll-view scroll-x class="w-full whitespace-nowrap" show-scrollbar="false">
-          <view class="inline-flex gap-3 pb-1">
+        <!-- #ifdef H5 -->
+        <view class="home-h5-hscroll" @wheel="horizontalWheelScroll">
+          <view class="home-hscroll-track">
             <view
               v-for="item in resumeList"
               :key="item.Id"
@@ -23,14 +39,45 @@
                   :src="backdropFor(item)"
                   mode="aspectFill"
                 />
-                <!-- 播放进度条 -->
                 <view class="absolute bottom-0 left-0 right-0 h-1 bg-black bg-opacity-40">
                   <view
                     class="h-full bg-green-500"
                     :style="{ width: (item.UserData?.PlayedPercentage || 0) + '%' }"
                   />
                 </view>
-                <!-- 播放按钮 -->
+                <view class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20">
+                  <text class="text-4xl text-white text-opacity-90">▶</text>
+                </view>
+              </view>
+              <view class="p-2">
+                <text class="line-clamp-1 text-sm text-white text-opacity-90">{{ displayName(item) }}</text>
+                <text v-if="item.SeriesName || item.SeasonName" class="mt-0.5 line-clamp-1 text-xs text-muted">{{ formatEpisodeInfo(item) }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+        <!-- #endif -->
+        <!-- #ifndef H5 -->
+        <scroll-view scroll-x enable-flex class="w-full" :show-scrollbar="false">
+          <view class="home-hscroll-track">
+            <view
+              v-for="item in resumeList"
+              :key="item.Id"
+              class="w-64 shrink-0 overflow-hidden rounded-lg bg-card active:opacity-80"
+              @click="open(item)"
+            >
+              <view class="relative">
+                <image
+                  class="aspect-video w-full bg-white bg-opacity-5"
+                  :src="backdropFor(item)"
+                  mode="aspectFill"
+                />
+                <view class="absolute bottom-0 left-0 right-0 h-1 bg-black bg-opacity-40">
+                  <view
+                    class="h-full bg-green-500"
+                    :style="{ width: (item.UserData?.PlayedPercentage || 0) + '%' }"
+                  />
+                </view>
                 <view class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20">
                   <text class="text-4xl text-white text-opacity-90">▶</text>
                 </view>
@@ -42,6 +89,7 @@
             </view>
           </view>
         </scroll-view>
+        <!-- #endif -->
       </view>
 
       <media-row v-if="recoMovies.length" title="推荐 · 电影">
@@ -58,11 +106,11 @@
         <view
           v-for="item in recoTv"
           :key="item.Id"
-          class="w-36 shrink-0 overflow-hidden rounded-lg bg-card active:opacity-80"
+          class="w-64 shrink-0 overflow-hidden rounded-lg bg-card active:opacity-80"
           @click="open(item)"
         >
           <image
-            class="aspect-[2/3] w-full bg-white bg-opacity-5"
+            class="aspect-[2/3] w-64 bg-white bg-opacity-5"
             :src="posterFor(item)"
             mode="aspectFill"
           />
@@ -110,6 +158,7 @@ import {
   buildUserItemsParams,
 } from '@/api/emby-items'
 import { useEmbyImage } from '@/composables/use-emby-image'
+import { horizontalWheelScroll } from '@/composables/use-horizontal-wheel'
 import { setStorageSync, getStorageSync } from '@/utils/storage'
 
 const CACHE_KEY = 'home_cache_v2'
@@ -127,8 +176,17 @@ const recoTv = ref([])
 const hasData = computed(() =>
   resumeList.value.length > 0 ||
   recoMovies.value.length > 0 ||
-  recoTv.value.length > 0
+  recoTv.value.length > 0 ||
+  libraryTiles.value.length > 0
 )
+
+const libraryTiles = computed(() => library.browseNavItems)
+
+function goBrowse(path) {
+  const u = (path || '').trim()
+  if (!u) return
+  uni.navigateTo({ url: u })
+}
 
 let hasLoaded = false
 let loadPromise = null
@@ -254,6 +312,7 @@ async function load() {
     applyRecoFromCache(cached)
     loading.value = true
     try {
+      await library.loadViews()
       const resR = await fetchResumeItems(8)
       resumeList.value = resR.data?.Items || []
     } catch (e) {
@@ -402,4 +461,54 @@ async function loadLatestEpisodes(seriesList) {
 .text-primary {
   color: #409eff;
 }
+
+.home-hscroll-track {
+  display: flex;
+  width: max-content;
+  max-width: none;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+  padding-bottom: 0.25rem;
+}
+
+/* #ifdef H5 */
+.home-h5-hscroll {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+}
+
+@media (pointer: fine) {
+  .home-h5-hscroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+  }
+  .home-h5-hscroll::-webkit-scrollbar {
+    height: 8px;
+  }
+  .home-h5-hscroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 4px;
+  }
+  .home-h5-hscroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@media (pointer: coarse) {
+  .home-h5-hscroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .home-h5-hscroll::-webkit-scrollbar {
+    display: none;
+  }
+}
+/* #endif */
 </style>

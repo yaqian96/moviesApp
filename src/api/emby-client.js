@@ -1,6 +1,5 @@
 import axios from 'axios'
 import { useUserStore } from '@/stores/user'
-
 import { shouldUseLocalApiProxy } from '@/utils/emby-env'
 
 function deviceHeaders() {
@@ -27,21 +26,23 @@ function createClient() {
     if (!root) {
       return Promise.reject(new Error('未配置 Emby 服务地址'))
     }
-    
-    // localhost 开发 / vite preview 走同域 /api，避免 CORS；已部署域名或 file:// 直连 Emby
+
     if (shouldUseLocalApiProxy() && root) {
       config.baseURL = '/api'
-      // 如果原始 URL 是 /emby/Users/xxx，现在变成 /api/Users/xxx
       if (config.url && config.url.startsWith('/emby')) {
         config.url = config.url.replace('/emby', '')
       }
     } else {
       config.baseURL = root
     }
-    
-    const token = user.activeToken
-    if (token) {
-      config.headers['X-Emby-Token'] = token
+
+    const tok = user.activeToken
+    if (tok) {
+      config.headers['X-Emby-Token'] = tok
+      const prevParams = config.params && typeof config.params === 'object' ? config.params : {}
+      if (!Object.prototype.hasOwnProperty.call(prevParams, 'api_key')) {
+        config.params = { ...prevParams, api_key: tok }
+      }
     }
     Object.assign(config.headers, deviceHeaders())
     return config

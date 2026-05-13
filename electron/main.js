@@ -1,6 +1,8 @@
 const { app, BrowserWindow } = require('electron')
 const path = require('path')
 
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
@@ -9,13 +11,15 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
+      backgroundThrottling: false,
     },
   })
 
   const isDev = process.env.NODE_ENV === 'development'
   
   if (isDev) {
-    win.loadURL('http://localhost:5173')
+    const devPort = process.env.VITE_DEV_PORT || process.env.UNI_DEV_PORT || '8080'
+    win.loadURL(`http://localhost:${devPort}`)
     win.webContents.openDevTools()
   } else {
     win.loadFile(path.join(__dirname, '../dist/build/h5/index.html'))

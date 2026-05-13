@@ -7,6 +7,7 @@ export function normalizeEmbyApiRoot(baseUrl) {
 
 export function withTokenQuery(url, token) {
   if (!url || !token) return url
+  if (/[?&]api_key=/i.test(url)) return url
   const join = url.includes('?') ? '&' : '?'
   return `${url}${join}api_key=${encodeURIComponent(token)}`
 }

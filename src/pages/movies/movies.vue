@@ -1,11 +1,8 @@
 <template>
   <app-shell active="movies">
     <view v-if="!parentReady" class="py-8 text-center text-sm text-muted">正在解析媒体库…</view>
-    <view v-else>
-      <view class="mb-4 px-1">
-        <text class="text-lg font-medium">电影</text>
-      </view>
-      <view class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+    <view v-else class="w-full min-w-0">
+      <media-row :show-title="false">
         <media-card
           v-for="item in items"
           :key="item.Id"
@@ -13,7 +10,7 @@
           :poster="posterFor(item)"
           @click="open(item)"
         />
-      </view>
+      </media-row>
       <view v-if="loading" class="py-6 text-center">
         <wd-loading />
       </view>
@@ -31,6 +28,7 @@
 import { ref, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import AppShell from '@/components/app-shell/app-shell.vue'
+import MediaRow from '@/components/media-row/media-row.vue'
 import MediaCard from '@/components/media-card/media-card.vue'
 import { useUserStore } from '@/stores/user'
 import { useLibraryStore } from '@/stores/library'
@@ -41,7 +39,7 @@ const user = useUserStore()
 const library = useLibraryStore()
 const { primaryUrl } = useEmbyImage()
 
-const initialSize = 8
+const initialSize = 12
 const pageSize = 16
 const start = ref(0)
 const items = ref([])

@@ -9,15 +9,25 @@ export function fetchUserViews() {
   return embyClient.get(`/Users/${uid()}/Views`)
 }
 
-export function fetchResumeItems(limit = 24) {
-  return embyClient.get(`/Users/${uid()}/Items/Resume`, {
-    params: {
-      Limit: limit,
-      Recursive: true,
-      IncludeItemTypes: 'Movie,Episode',
-      Fields: 'PrimaryImageAspectRatio,Overview,Path,Type,MediaType,UserData,SeriesName,SeasonName,IndexNumber,ParentIndexNumber,BackdropImageTags',
-    },
-  })
+export async function fetchResumeItems(limit = 24) {
+  const params = {
+    Limit: limit,
+    Recursive: true,
+    Fields:
+      'PrimaryImageAspectRatio,Overview,Path,Type,MediaType,UserData,ImageTags,BackdropImageTags',
+  }
+  try {
+    return await embyClient.get(`/Users/${uid()}/Items/Resume`, { params })
+  } catch {
+    return embyClient.get(`/Users/${uid()}/Items`, {
+      params: {
+        ...params,
+        SortBy: 'DatePlayed',
+        SortOrder: 'Descending',
+        Filters: 'IsResumable',
+      },
+    })
+  }
 }
 
 export function fetchUserItems(params) {

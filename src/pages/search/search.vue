@@ -1,21 +1,13 @@
 <template>
-  <app-shell active="home">
+  <app-shell active="search">
     <view class="w-full px-4 py-4">
-      <!-- 搜索输入框 -->
-      <view class="mb-4 w-full">
-        <wd-input
-          v-model="q"
-          placeholder="搜索电影、电视剧..."
-          clearable
-          @confirm="run"
-        />
-        <wd-button class="mt-3 w-full" type="primary" @click="run">搜索</wd-button>
-      </view>
-      
       <view v-if="loading" class="py-12 text-center">
         <wd-loading />
       </view>
       <view v-else>
+        <view v-if="hasSearched" class="mb-4">
+          <text class="text-sm text-muted">搜索关键词: {{ q }}</text>
+        </view>
         <view
           v-for="row in list"
           :key="row.Id"

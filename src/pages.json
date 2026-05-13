@@ -19,6 +19,12 @@
       }
     },
     {
+      "path": "pages/browse/browse",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/movies/movies",
       "style": {
         "navigationStyle": "custom"
